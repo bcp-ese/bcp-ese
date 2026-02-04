@@ -5,7 +5,7 @@ using BCPSolver::test::solve_expect;
 
 TEST(StaircaseWithAuxiliaryVarsWithCacheEncodingTest, GEOM20_NonOptimal_DummyUpperBound_SymmetryOnOff)
 {
-    for (const auto& solver : {SATSolver::SOLVER::KISSAT, SATSolver::SOLVER::CADICAL})
+    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
     {
         for (const bool symm : {false, true})
         {
@@ -36,7 +36,7 @@ TEST(StaircaseWithAuxiliaryVarsWithCacheEncodingTest, Optimal_NonIncremental_GEO
         {"../dataset/GEOM20a.col", 20},
         {"../dataset/GEOM20b.col", 13}
     };
-    for (const auto& solver : {SATSolver::SOLVER::KISSAT, SATSolver::SOLVER::CADICAL})
+    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
     {
         for (const auto& [path, expected_span] : cases)
         {

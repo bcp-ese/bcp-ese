@@ -7,7 +7,6 @@ cd "$(dirname "$0")"
 # --- Configuration ---
 CADICAL_LIB="external/cadical/libcadical.a"
 CADICAL_HEADER="external/cadical/include/cadical.hpp"
-KISSAT_EXEC="bin/kissat"
 BUILD_DIR="build"
 EXEC_NAME="bcp"
 
@@ -23,11 +22,6 @@ fi
 
 if [ ! -f "$CADICAL_HEADER" ]; then
     echo " [ERROR] Missing: $CADICAL_HEADER"
-    MISSING_DEPS=1
-fi
-
-if [ ! -f "$KISSAT_EXEC" ]; then
-    echo " [ERROR] Missing: $KISSAT_EXEC"
     MISSING_DEPS=1
 fi
 

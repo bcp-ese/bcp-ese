@@ -24,8 +24,6 @@ set(CORE_SOURCES
         src/bcp_solver/bcp_solver.cpp
         src/sat_solver/Cadical.cpp
         src/sat_solver/Cadical.h
-        src/sat_solver/Kissat.cpp
-        src/sat_solver/Kissat.h
 )
 
 set(METHOD_SOURCES
@@ -58,10 +56,6 @@ add_executable(bcp
         ${ENCODER_SOURCES}
 )
 
-target_compile_definitions(bcp PRIVATE
-        KISSAT_PATH="${CMAKE_SOURCE_DIR}/bin/kissat"
-)
-
 target_link_libraries(bcp PRIVATE ${CADICAL_LIB})
 
 enable_testing()
@@ -78,10 +72,6 @@ add_executable(bcp_tests
         ${CORE_SOURCES}
         ${METHOD_SOURCES}
         ${ENCODER_SOURCES}
-)
-
-target_compile_definitions(bcp_tests PRIVATE
-        KISSAT_PATH="${CMAKE_SOURCE_DIR}/bin/kissat"
 )
 
 target_link_libraries(bcp_tests

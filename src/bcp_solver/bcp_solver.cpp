@@ -17,7 +17,6 @@
 #include "method/TwoVarsGreaterMethod.h"
 #include "method/TwoVarsLessMethod.h"
 #include "sat_solver/Cadical.h"
-#include "sat_solver/Kissat.h"
 
 void BCPSolver::BCPSolver::calculate_upper_bound()
 {
@@ -134,14 +133,7 @@ BCPSolver::BCPSolver::BCPSolver(const Graph* graph, const SATSolver::SOLVER solv
       use_symmetry_breaking(use_symmetry_breaking),
       use_heuristic(use_heuristic)
 {
-    if (solver == SATSolver::CADICAL)
-    {
         sat_solver = std::make_unique<SATSolver::Cadical>();
-    }
-    else
-    {
-        sat_solver = std::make_unique<SATSolver::Kissat>();
-    }
 
     if (this->upper_bound < 0)
     {

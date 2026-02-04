@@ -30,7 +30,6 @@ The Bandwidth Coloring Problem (BCP) is a generalization of graph coloring in wh
 2. Add dependencies: 
 - Install a C++ compiler (e.g., g++) and CMake.
 - Compile CaDiCaL SAT solver then place dynamic library files in the `external/cadical` directory and header files in the `external/cadical/include` directory.
-- Compile Kissat SAT solver then place binary files in the bin directory. Provide necessary permissions to execute the binary files.
 
 3. Build the project:
    ```bash

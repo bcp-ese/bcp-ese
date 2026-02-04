@@ -11,3 +11,6 @@
 .venv
 .idea
 cmake-build-debug
+build
+external
+bins

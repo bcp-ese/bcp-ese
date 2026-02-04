@@ -5,7 +5,7 @@ using BCPSolver::test::solve_expect;
 
 TEST(TwoVariableLessEncodingTest, GEOM20_NonOptimal_DummyUpperBound_AllFlagCombos)
 {
-    for (const auto& solver : {SATSolver::SOLVER::KISSAT, SATSolver::SOLVER::CADICAL})
+    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
     {
         for (const bool symm : {false, true})
         {
@@ -34,7 +34,7 @@ TEST(TwoVariableLessEncodingTest, Optimal_NonIncremental_GEOM20_GEOM20a_GEOM20b)
         {"../dataset/GEOM20b.col", 13}
     };
 
-    for (const auto& solver : {SATSolver::SOLVER::KISSAT, SATSolver::SOLVER::CADICAL})
+    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
     {
         for (const auto& [path, expected_span] : cases)
         {
