@@ -1,49 +1,51 @@
 #!/bin/bash
 
-set -e
+set -eu
 
-cd "$(dirname "$0")"
+script_dir="$(cd "$(dirname "$0")" && pwd)"
+cd "$script_dir"
 
-CADICAL_LIB="external/cadical/libcadical.a"
-BUILD_DIR="build"
-EXEC_NAME="bcp"
+cadical_lib="${CADICAL_LIB:-external/cadical/libcadical.a}"
+cadical_include_dir="${CADICAL_INCLUDE_DIR:-external/cadical/include}"
+build_dir="${BCP_BUILD_DIR:-build}"
 
-if [ ! -f "$CADICAL_LIB" ]; then
+case "$cadical_lib" in
+    /*) ;;
+    *) cadical_lib="$script_dir/$cadical_lib" ;;
+esac
+case "$cadical_include_dir" in
+    /*) ;;
+    *) cadical_include_dir="$script_dir/$cadical_include_dir" ;;
+esac
+
+if [ ! -f "$cadical_lib" ]; then
     echo "========================================================"
-    echo " [ERROR] Cadical library not found!"
-    echo " Expected path: ./$CADICAL_LIB"
+    echo " [ERROR] CaDiCaL library not found!"
+    echo " Expected path: ./$cadical_lib"
     echo "========================================================"
-    echo " Please compile Cadical manually before running this script."
+    echo " Please compile CaDiCaL manually before running this script."
     echo "========================================================"
     exit 1
 fi
 
-echo "Found Cadical library. Proceeding..."
-
-if [ -d "$BUILD_DIR" ]; then
-    echo "Cleaning previous build..."
-    rm -rf "$BUILD_DIR"
-fi
-
-mkdir "$BUILD_DIR"
-cd "$BUILD_DIR"
+echo "Found CaDiCaL library. Proceeding..."
 
 echo "Configuring project..."
-cmake -DCMAKE_BUILD_TYPE=Release ..
+cmake -S "$script_dir" -B "$build_dir" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCADICAL_LIB="$cadical_lib" \
+    -DCADICAL_INCLUDE_DIR="$cadical_include_dir"
 
 echo "Building project..."
-cmake --build . --parallel
+cmake --build "$build_dir" --parallel
 
-if [ -f "$EXEC_NAME" ]; then
-    mv "$EXEC_NAME" ../
-elif [ -f "Release/$EXEC_NAME" ]; then
-    mv "Release/$EXEC_NAME" ../
-else
-    echo "Error: Could not locate the built executable '$EXEC_NAME'."
+if [ ! -f "$build_dir/bcp" ]; then
+    echo "Error: Could not locate the built executable '$build_dir/bcp'."
     exit 1
 fi
+cp "$build_dir/bcp" "$script_dir/bcp"
 
 echo "========================================================"
 echo " Build Finished Successfully!"
-echo " The executable '$EXEC_NAME' is now in the current directory."
+echo " The executable '$script_dir/bcp' is now in the repository root."
 echo "========================================================"

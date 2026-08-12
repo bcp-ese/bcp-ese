@@ -9,17 +9,12 @@
 #include <limits>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 static constexpr double NO_TIME_LIMIT = std::numeric_limits<double>::lowest();
 
 namespace SATSolver
 {
-    enum SOLVER
-    {
-        CADICAL,
-        KISSAT
-    };
-
     class SatSolver
     {
     protected:

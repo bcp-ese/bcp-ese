@@ -23,19 +23,19 @@ namespace BCPSolver
 
         void create_variable() override;
 
-        std::vector<int>* create_assumptions(const std::string& variable_for_incremental) override;
+        std::vector<int> create_bound_tightening_literals(
+            const std::string& variable_for_incremental) override;
 
         friend class BCPSolver;
 
-        explicit OneVarGreaterMethod(const Graph* graph, const SATSolver::SOLVER solver,
-                                     const int upper_bound,
+        explicit OneVarGreaterMethod(const Graph* graph, const int upper_bound,
                                      const bool use_symmetry_breaking,
                                      const bool use_heuristic) : BCPSolver(
-            graph, solver, upper_bound, use_symmetry_breaking, use_heuristic)
+            graph, upper_bound, use_symmetry_breaking, use_heuristic)
         {
             if (use_heuristic)
             {
-                throw std::runtime_error("Heuristic is not supported in OneVarGreaterMethod.");
+                throw std::runtime_error("Pairwise encoding is not supported in OneVarGreaterMethod.");
             }
         }
     };

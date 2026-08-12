@@ -7,7 +7,12 @@
 
 void BCPSolver::StaircaseWithAuxiliaryVarsMethod::symmetry_breaking()
 {
-    for (int c = (span / 2) + 1; c < span + 1; c++)
+    if (graph->get_number_of_nodes() == 0)
+    {
+        return;
+    }
+    const int midpoint = (span + 1) / 2;
+    for (int c = midpoint + 1; c < span + 1; c++)
     {
         sat_solver->add_clause(-x[{graph->get_highest_degree_vertex(), c}]);
     }
@@ -167,7 +172,7 @@ void BCPSolver::StaircaseWithAuxiliaryVarsMethod::second_constraint()
     used_tuple.clear();
     for (const auto& [u, v, weight] : graph->get_edges())
     {
-        for (int c = 1; c < weight; c++)
+        for (int c = 1; c <= span && c < weight; c++)
         {
             if (c - weight < 1 && c + weight - 1 > span)
             {
@@ -236,18 +241,18 @@ void BCPSolver::StaircaseWithAuxiliaryVarsMethod::create_variable()
     }
 }
 
-std::vector<int>* BCPSolver::StaircaseWithAuxiliaryVarsMethod::create_assumptions(
+std::vector<int> BCPSolver::StaircaseWithAuxiliaryVarsMethod::create_bound_tightening_literals(
     const std::string& variable_for_incremental)
 {
     if (variable_for_incremental == "x")
     {
-        auto* assumptions = new std::vector<int>(graph->get_number_of_nodes());
+        std::vector<int> literals(graph->get_number_of_nodes());
 
         for (int i = 0; i < graph->get_number_of_nodes(); i++)
         {
-            (*assumptions)[i] = -x[{i, span}];
+            literals[i] = -x.at({i, span});
         }
-        return assumptions;
+        return literals;
     }
     else
     {

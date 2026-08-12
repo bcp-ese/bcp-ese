@@ -11,7 +11,7 @@ namespace BCPSolver
         used_tuple.clear();
         for (const auto& [u, v, weight] : graph->get_edges())
         {
-            for (int c = 1; c < weight; c++)
+            for (int c = 1; c <= span && c < weight; c++)
             {
                 if (c - weight < 1 && c + weight - 1 > span)
                 {

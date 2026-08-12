@@ -5,31 +5,50 @@
 #include "Cadical.h"
 
 #include <condition_variable>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <mutex>
+#include <sstream>
+#include <stdexcept>
+#include <thread>
+#include <vector>
 
 #ifdef _WIN32
 #include <io.h>
+#include <process.h>
 #define DUP _dup
 #define DUP2 _dup2
 #define FILENO _fileno
+#define GETPID _getpid
 #define UNLINK _unlink
 #else
 #include <unistd.h>
 #define DUP dup
 #define DUP2 dup2
 #define FILENO fileno
+#define GETPID getpid
 #define UNLINK unlink
 #endif
 
 // Static mutex to protect stdout redirection (process-global resource)
 static std::mutex stdout_capture_mutex;
 
+SATSolver::Cadical::Cadical()
+{
+    if (!solver->set("seed", SOLVER_SEED))
+    {
+        throw std::runtime_error("CaDiCaL does not expose the expected seed option.");
+    }
+}
+
 void SATSolver::Cadical::capture_and_accumulate_stats()
 {
     std::lock_guard<std::mutex> lock(stdout_capture_mutex);
 
-    const char* temp_filename = "cadical_stats_capture.tmp";
+    const auto temp_path = std::filesystem::temp_directory_path() /
+        ("bcp-cadical-stats-" + std::to_string(GETPID()) + ".tmp");
+    const std::string temp_filename = temp_path.string();
 
     // 1. Flush current stdout to ensure clean state
     fflush(stdout);
@@ -38,7 +57,7 @@ void SATSolver::Cadical::capture_and_accumulate_stats()
     int original_stdout_fd = DUP(FILENO(stdout));
 
     // 3. Redirect stdout to our temp file
-    if (freopen(temp_filename, "w", stdout) == nullptr)
+    if (freopen(temp_filename.c_str(), "w", stdout) == nullptr)
     {
         // Fallback: If redirection fails, restore and exit
         // (Original fd is still open, just close duplicate)
@@ -66,6 +85,7 @@ void SATSolver::Cadical::capture_and_accumulate_stats()
 
     // 6. Read the temp file and parse
     std::ifstream infile(temp_filename);
+    std::unordered_map<std::string, double> current_snapshot;
     std::string line;
     while (std::getline(infile, line))
     {
@@ -97,8 +117,7 @@ void SATSolver::Cadical::capture_and_accumulate_stats()
                     // The next token is the value
                     double value = std::stod(tokens[i + 1]);
 
-                    // Sum the value into our map
-                    stats_accum[key] += value;
+                    current_snapshot[key] = value;
                 }
                 catch (...)
                 {
@@ -110,8 +129,18 @@ void SATSolver::Cadical::capture_and_accumulate_stats()
     }
     infile.close();
 
+    for (const auto& [key, value] : current_snapshot)
+    {
+        const auto previous = last_stats_snapshot.find(key);
+        const double delta = previous == last_stats_snapshot.end() || value < previous->second
+                                 ? value
+                                 : value - previous->second;
+        stats_accum[key] += delta;
+    }
+    last_stats_snapshot = std::move(current_snapshot);
+
     // 7. Delete the temp file
-    UNLINK(temp_filename);
+    UNLINK(temp_filename.c_str());
 }
 
 void SATSolver::Cadical::add_clause(const std::vector<int>& clause)
@@ -180,7 +209,7 @@ int SATSolver::Cadical::solve(const std::vector<int>* assumptions, const double 
     if (time_limit == NO_TIME_LIMIT)
     {
         status = solver->solve();
-        // Capture immediately after solving
+        time_accum += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_time).count();
         capture_and_accumulate_stats();
     }
     else
@@ -203,9 +232,6 @@ int SATSolver::Cadical::solve(const std::vector<int>* assumptions, const double 
 
         status = solver->solve();
 
-        // Capture immediately after solving
-        capture_and_accumulate_stats();
-
         {
             std::lock_guard<std::mutex> lk(mtx);
             finished = true;
@@ -218,9 +244,9 @@ int SATSolver::Cadical::solve(const std::vector<int>* assumptions, const double 
         }
 
         solver->disconnect_terminator();
+        time_accum += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_time).count();
+        capture_and_accumulate_stats();
     }
-
-    time_accum += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start_time).count();
 
     return status;
 }
@@ -230,6 +256,11 @@ void SATSolver::Cadical::reset()
     number_of_clauses = 0;
     number_of_variables = 0;
     solver = std::make_unique<CaDiCaL::Solver>();
+    if (!solver->set("seed", SOLVER_SEED))
+    {
+        throw std::runtime_error("CaDiCaL does not expose the expected seed option.");
+    }
+    last_stats_snapshot.clear();
 }
 
 std::unordered_map<std::string, double> SATSolver::Cadical::get_statistics() const
@@ -240,6 +271,7 @@ std::unordered_map<std::string, double> SATSolver::Cadical::get_statistics() con
     final_stats["total_solving_time"] = time_accum;
     final_stats["clauses"] = number_of_clauses;
     final_stats["variables"] = number_of_variables;
+    final_stats["solver_seed"] = SOLVER_SEED;
 
     return final_stats;
 }
