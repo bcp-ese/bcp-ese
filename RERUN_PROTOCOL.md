@@ -47,6 +47,35 @@ Relevant configuration flags are:
 The valid incremental modes are `y` for 1G/1L; `x`, `y`, or `both` for 2G/2L; and `x`
 for X/Xa.
 
+## Complete manuscript matrix
+
+The executable runner `run-all-36-review-rerun.sh` covers exactly the 36 configurations
+listed in the manuscript configuration matrix:
+
+- 1G and 1L: non-incremental or incremental `y`, each with symmetry off/on (4 each);
+- 2G and 2L: non-incremental, incremental `x`, or incremental `y`, each with symmetry
+  off/on (6 each);
+- X and cached Xa: fixed or varying width, non-incremental or incremental `x`, each with
+  symmetry off/on (8 each).
+
+Although the implementation supports additional experimental modes, incremental `both`,
+pairwise constraints, and `Xa(no-cache)` are not part of the manuscript's 36-configuration
+matrix. With the 53 current `.col` files and three repetitions, the runner performs
+`36 x 53 x 3 = 5724` solver invocations. It validates the release tag and SHA before
+starting, runs with concurrency one, and can resume from its most recent partial result.
+
+Invoke the runner from a checkout containing the script, while passing a separate clean,
+detached worktree at the frozen release tag as its first argument:
+
+```sh
+git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc1^{}'
+./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc1
+```
+
+Build `../bcp-rerun/bcp` from the pinned CaDiCaL dependency before starting. If execution
+is interrupted, invoke the same command again; completed configurations are validated and
+skipped, while an incomplete configuration resumes from the latest saved CSV.
+
 ## Statistical unit
 
 For each instance/configuration, report the mean and sample standard deviation of the
