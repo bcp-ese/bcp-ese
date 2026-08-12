@@ -9,8 +9,12 @@
 # Editor-based HTTP Client requests
 /httpRequests/
 .venv
+__pycache__/
+*.py[cod]
 .idea
 cmake-build-debug
-build
-external
-bins
+/build/
+/build-*/
+/bcp
+/cnf/
+*.tmp

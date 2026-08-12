@@ -6,7 +6,12 @@
 
 void BCPSolver::OneVarLessMethod::symmetry_breaking()
 {
-    sat_solver->add_clause(y[{graph->get_highest_degree_vertex(), span / 2 + 1}]);
+    if (graph->get_number_of_nodes() == 0)
+    {
+        return;
+    }
+    const int midpoint = (span + 1) / 2;
+    sat_solver->add_clause(y.at({graph->get_highest_degree_vertex(), midpoint}));
 }
 
 void BCPSolver::OneVarLessMethod::first_constraint()
@@ -38,7 +43,14 @@ void BCPSolver::OneVarLessMethod::third_constraint()
         {
             if (c - weight < 1 && c + weight - 1 > span)
             {
-                sat_solver->add_clause(-y[{u, c}], y[{u, c - 1}]);
+                if (c == 1)
+                {
+                    sat_solver->add_clause(-y.at({u, c}));
+                }
+                else
+                {
+                    sat_solver->add_clause(-y.at({u, c}), y.at({u, c - 1}));
+                }
             }
             else if (c - weight < 1)
             {
@@ -101,17 +113,18 @@ void BCPSolver::OneVarLessMethod::create_variable()
     }
 }
 
-std::vector<int>* BCPSolver::OneVarLessMethod::create_assumptions(const std::string& variable_for_incremental)
+std::vector<int> BCPSolver::OneVarLessMethod::create_bound_tightening_literals(
+    const std::string& variable_for_incremental)
 {
-    if (variable_for_incremental=="y")
+    if (variable_for_incremental == "y")
     {
-        auto* assumptions = new std::vector<int>(graph->get_number_of_nodes());
+        std::vector<int> literals(graph->get_number_of_nodes());
 
         for (int i = 0; i < graph->get_number_of_nodes(); i++)
         {
-            (*assumptions)[i] = y[{i, span - 1}];
+            literals[i] = y.at({i, span - 1});
         }
-        return assumptions;
+        return literals;
     }
     else
     {

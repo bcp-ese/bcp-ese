@@ -15,11 +15,10 @@ namespace BCPSolver
         friend class BCPSolver;
         std::map<std::tuple<int, int, int, int>, std::pair<int, int>> used_tuple;
 
-        explicit StaircaseWithoutAuxiliaryVarsMethod(const Graph* graph, const SATSolver::SOLVER solver,
-                                                     const int upper_bound,
+        explicit StaircaseWithoutAuxiliaryVarsMethod(const Graph* graph, const int upper_bound,
                                                      const bool use_symmetry_breaking,
                                                      const bool use_heuristic, const std::string& width) :
-            StaircaseWithAuxiliaryVarsMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic, false,
+            StaircaseWithAuxiliaryVarsMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic, false,
                                              width)
         {
         }

@@ -5,15 +5,12 @@ using BCPSolver::test::solve_expect;
 
 TEST(OneVariableGreaterEncodingTest, GEOM20_NonOptimal_DummyUpperBound)
 {
-    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
+    for (const bool symm : {false, true})
     {
-        for (const bool symm : {false, true})
-        {
-            constexpr int ub = 100;
-            SCOPED_TRACE(symm ? "symmetry=on" : "symmetry=off");
-            solve_expect(BCPSolver::OneVariableGreater, "../dataset/GEOM20.col", solver, ub, symm, false, "", false,
-                         false, "", SolverStatus::SATISFIABLE, ub);
-        }
+        constexpr int ub = 100;
+        SCOPED_TRACE(symm ? "symmetry=on" : "symmetry=off");
+        solve_expect(BCPSolver::OneVariableGreater, "../dataset/GEOM20.col", ub, symm, false, "", false, false, "",
+                     SolverStatus::SATISFIABLE, ub);
     }
 }
 
@@ -31,16 +28,13 @@ TEST(OneVariableGreaterEncodingTest, Optimal_NonIncremental_GEOM20_GEOM20a_GEOM2
         {"../dataset/GEOM20b.col", 13}
     };
 
-    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
+    for (const auto& [path, expected_span] : cases)
     {
-        for (const auto& [path, expected_span] : cases)
+        for (const bool symm : {false, true})
         {
-            for (const bool symm : {false, true})
-            {
-                SCOPED_TRACE(std::string(path) + " / " + (symm ? "symmetry=on" : "symmetry=off"));
-                solve_expect(BCPSolver::OneVariableGreater, path, solver, -1, symm, false, "", true, false, "",
-                             SolverStatus::OPTIMAL, expected_span);
-            }
+            SCOPED_TRACE(std::string(path) + " / " + (symm ? "symmetry=on" : "symmetry=off"));
+            solve_expect(BCPSolver::OneVariableGreater, path, -1, symm, false, "", true, false, "",
+                         SolverStatus::OPTIMAL, expected_span);
         }
     }
 }
@@ -58,16 +52,13 @@ TEST(OneVariableGreaterEncodingTest, Optimal_Incremental_GEOM20_GEOM20a_GEOM20b)
         {"../dataset/GEOM20b.col", 13}
     };
 
-    for (const auto& solver : {SATSolver::SOLVER::CADICAL})
+    for (const auto& [path, expected_span] : cases)
     {
-        for (const auto& [path, expected_span] : cases)
+        for (const bool symm : {false, true})
         {
-            for (const bool symm : {false, true})
-            {
-                SCOPED_TRACE(std::string(path) + " / " + (symm ? "symmetry=on" : "symmetry=off"));
-                solve_expect(BCPSolver::OneVariableGreater, path, solver, -1, symm, false, "", true, true, "y",
-                             SolverStatus::OPTIMAL, expected_span);
-            }
+            SCOPED_TRACE(std::string(path) + " / " + (symm ? "symmetry=on" : "symmetry=off"));
+            solve_expect(BCPSolver::OneVariableGreater, path, -1, symm, false, "", true, true, "y",
+                         SolverStatus::OPTIMAL, expected_span);
         }
     }
 }

@@ -6,7 +6,12 @@
 
 void BCPSolver::TwoVarsLessMethod::symmetry_breaking()
 {
-    sat_solver->add_clause(y[{graph->get_highest_degree_vertex(), span / 2 + 1}]);
+    if (graph->get_number_of_nodes() == 0)
+    {
+        return;
+    }
+    const int midpoint = (span + 1) / 2;
+    sat_solver->add_clause(y.at({graph->get_highest_degree_vertex(), midpoint}));
 }
 
 void BCPSolver::TwoVarsLessMethod::first_constraint()
@@ -129,38 +134,40 @@ void BCPSolver::TwoVarsLessMethod::create_variable()
     }
 }
 
-std::vector<int>* BCPSolver::TwoVarsLessMethod::create_assumptions(const std::string& variable_for_incremental)
+std::vector<int> BCPSolver::TwoVarsLessMethod::create_bound_tightening_literals(
+    const std::string& variable_for_incremental)
 {
     if (variable_for_incremental == "y")
     {
-        auto* assumptions = new std::vector<int>(graph->get_number_of_nodes());
+        std::vector<int> literals(graph->get_number_of_nodes());
 
         for (int i = 0; i < graph->get_number_of_nodes(); i++)
         {
-            (*assumptions)[i] = y[{i, span - 1}];
+            literals[i] = y.at({i, span - 1});
         }
-        return assumptions;
+        return literals;
     }
     else if (variable_for_incremental == "x")
     {
-        auto* assumptions = new std::vector<int>(graph->get_number_of_nodes());
+        std::vector<int> literals(graph->get_number_of_nodes());
 
         for (int i = 0; i < graph->get_number_of_nodes(); i++)
         {
-            (*assumptions)[i] = -x[{i, span}];
+            literals[i] = -x.at({i, span});
         }
-        return assumptions;
+        return literals;
     }
     else if (variable_for_incremental == "both")
     {
-        auto* assumptions = new std::vector<int>(graph->get_number_of_nodes());
+        std::vector<int> literals;
+        literals.reserve(2 * graph->get_number_of_nodes());
 
         for (int i = 0; i < graph->get_number_of_nodes(); i++)
         {
-            (*assumptions)[i] = -x[{i, span}];
-            (*assumptions)[i] = y[{i, span - 1}];
+            literals.push_back(-x.at({i, span}));
+            literals.push_back(y.at({i, span - 1}));
         }
-        return assumptions;
+        return literals;
     }
     else
     {

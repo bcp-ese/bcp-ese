@@ -8,7 +8,11 @@
 #include "utility.h"
 
 #include <map>
+#include <memory>
+#include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace BCPSolver
 {
@@ -22,6 +26,8 @@ namespace BCPSolver
         std::unique_ptr<SATSolver::SatSolver> sat_solver;
 
         SolverStatus status{UNKNOWN};
+        bool timed_out{};
+        bool optimality_proven{};
 
         double encoding_time{};
         bool use_symmetry_breaking;
@@ -40,9 +46,10 @@ namespace BCPSolver
 
         virtual void encode() =0;
 
-        virtual std::vector<int>* create_assumptions(const std::string& variable_for_incremental) =0;
+        virtual std::vector<int> create_bound_tightening_literals(
+            const std::string& variable_for_incremental) =0;
 
-        explicit BCPSolver(const Graph* graph, SATSolver::SOLVER solver, int upper_bound,
+        explicit BCPSolver(const Graph* graph, int upper_bound,
                            bool use_symmetry_breaking, bool use_heuristic);
 
     public:
@@ -53,7 +60,6 @@ namespace BCPSolver
         virtual ~BCPSolver() = default;
 
         static BCPSolver* create_solver(SolvingMethod method, const Graph* graph,
-                                        SATSolver::SOLVER solver = SATSolver::CADICAL,
                                         int upper_bound = -1,
                                         bool use_symmetry_breaking = true,
                                         bool use_heuristic = false, const std::string& width = "");

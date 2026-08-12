@@ -17,7 +17,7 @@ namespace BCPSolver
         std::map<std::tuple<int, int, int>, int> staircase_aux_vars{};
         std::map<std::tuple<int, int, int, int>, int> used_tuple;
         std::vector<int> max_weight{std::vector(graph->get_number_of_nodes(), 0)};
-        const std::string& width;
+        const std::string width;
 
         bool use_cache{};
 
@@ -31,18 +31,18 @@ namespace BCPSolver
 
         void create_variable() override;
 
-        std::vector<int>* create_assumptions(const std::string& variable_for_incremental) override;
+        std::vector<int> create_bound_tightening_literals(
+            const std::string& variable_for_incremental) override;
 
         friend class BCPSolver;
 
         explicit StaircaseWithAuxiliaryVarsMethod(const Graph* graph,
-                                                  const SATSolver::SOLVER solver,
                                                   const int upper_bound,
                                                   const bool use_symmetry_breaking,
                                                   const bool use_heuristic,
                                                   const bool use_cache,
                                                   const std::string& width) :
-            BCPSolver(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic), width(width),
+            BCPSolver(graph, upper_bound, use_symmetry_breaking, use_heuristic), width(width),
             use_cache(use_cache)
         {
         }

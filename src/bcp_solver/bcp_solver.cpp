@@ -5,9 +5,7 @@
 #include "bcp_solver.h"
 
 #include <queue>
-#include <random>
 #include <ranges>
-#include <set>
 #include <utility>
 
 #include "method/OneVarGreaterMethod.h"
@@ -21,13 +19,18 @@
 void BCPSolver::BCPSolver::calculate_upper_bound()
 {
     const int n = graph->get_number_of_nodes();
+    if (n == 0)
+    {
+        upper_bound = 0;
+        return;
+    }
 
     std::vector colors(n, -1);
 
-    std::vector<std::set<int>> neighbouring_colors(n);
-
-    using Element = std::pair<int, int>;
-    std::priority_queue<Element, std::vector<Element>, std::greater<>> saturations;
+    // For BCP, q_v = 1 for every vertex in the source greedy heuristic. The
+    // priority below is therefore only a deterministic tie-break by vertex ID;
+    // it is not a DSatur score.
+    std::priority_queue<int, std::vector<int>, std::greater<>> pending_vertices;
 
     int max_color = 0;
 
@@ -72,14 +75,13 @@ void BCPSolver::BCPSolver::calculate_upper_bound()
     {
         if (int start_node = get_start_node(); start_node != -1)
         {
-            saturations.emplace(start_node, 0);
+            pending_vertices.push(start_node);
         }
 
-        while (!saturations.empty())
+        while (!pending_vertices.empty())
         {
-            std::pair<int, int> top = saturations.top();
-            saturations.pop();
-            int v = top.first;
+            const int v = pending_vertices.top();
+            pending_vertices.pop();
 
             if (colors[v] > -1)
             {
@@ -115,29 +117,36 @@ void BCPSolver::BCPSolver::calculate_upper_bound()
             {
                 if (int w = key; colors[w] == -1)
                 {
-                    neighbouring_colors[w].insert(v);
-                    saturations.emplace(w, static_cast<int>(neighbouring_colors[w].size()));
+                    pending_vertices.push(w);
                 }
             }
         }
     }
 
-    upper_bound = max_color;
+    // The greedy implementation uses zero-based colors internally, whereas
+    // the SAT encodings expose the positive domain [1, upper_bound].
+    upper_bound = max_color + 1;
 }
 
 
-BCPSolver::BCPSolver::BCPSolver(const Graph* graph, const SATSolver::SOLVER solver, const int upper_bound,
+BCPSolver::BCPSolver::BCPSolver(const Graph* graph, const int upper_bound,
                                 const bool use_symmetry_breaking,
                                 const bool use_heuristic)
     : graph(graph), upper_bound(upper_bound),
       use_symmetry_breaking(use_symmetry_breaking),
       use_heuristic(use_heuristic)
 {
-        sat_solver = std::make_unique<SATSolver::Cadical>();
+    sat_solver = std::make_unique<SATSolver::Cadical>();
 
     if (this->upper_bound < 0)
     {
         calculate_upper_bound();
+    }
+
+    lower_bound = graph->get_number_of_nodes() == 0 ? 0 : 1;
+    if (this->upper_bound < lower_bound)
+    {
+        throw std::invalid_argument("Upper bound is below the positive-color lower bound.");
     }
 
     span = this->upper_bound;
@@ -145,7 +154,6 @@ BCPSolver::BCPSolver::BCPSolver(const Graph* graph, const SATSolver::SOLVER solv
 
 BCPSolver::BCPSolver* BCPSolver::BCPSolver::create_solver(const SolvingMethod method,
                                                           const Graph* graph,
-                                                          const SATSolver::SOLVER solver,
                                                           const int upper_bound,
                                                           const bool use_symmetry_breaking,
                                                           const bool use_heuristic,
@@ -158,45 +166,45 @@ BCPSolver::BCPSolver* BCPSolver::BCPSolver::create_solver(const SolvingMethod me
         {
             throw std::invalid_argument("TwoVariablesGreater method does not support width parameter");
         }
-        return new TwoVarsGreaterMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic);
+        return new TwoVarsGreaterMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic);
     case TwoVariablesLess:
         if (!width.empty())
         {
             throw std::invalid_argument("TwoVariablesLess method does not support width parameter");
         }
-        return new TwoVarsLessMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic);
+        return new TwoVarsLessMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic);
     case OneVariableGreater:
         if (!width.empty())
         {
             throw std::invalid_argument("OneVariableGreater method does not support width parameter");
         }
-        return new OneVarGreaterMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic);
+        return new OneVarGreaterMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic);
     case OneVariableLess:
         if (!width.empty())
         {
             throw std::invalid_argument("OneVariableLess method does not support width parameter");
         }
-        return new OneVarLessMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic);
+        return new OneVarLessMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic);
     case StaircaseWithAuxiliaryVarsNoCache:
         if (width.empty())
         {
             throw std::invalid_argument("StaircaseWithAuxiliaryVarsNoCache method requires width parameter");
         }
-        return new StaircaseWithAuxiliaryVarsMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic,
+        return new StaircaseWithAuxiliaryVarsMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic,
                                                     false, width);
     case StaircaseWithAuxiliaryVarsWithCache:
         if (width.empty())
         {
             throw std::invalid_argument("StaircaseWithAuxiliaryVarsWithCache method requires width parameter");
         }
-        return new StaircaseWithAuxiliaryVarsMethod(graph, solver, upper_bound, use_symmetry_breaking, use_heuristic,
+        return new StaircaseWithAuxiliaryVarsMethod(graph, upper_bound, use_symmetry_breaking, use_heuristic,
                                                     true, width);
     case StaircaseWithoutAuxiliaryVars:
         if (width.empty())
         {
             throw std::invalid_argument("StaircaseWithoutAuxiliaryVars method requires width parameter");
         }
-        return new StaircaseWithoutAuxiliaryVarsMethod(graph, solver, upper_bound, use_symmetry_breaking,
+        return new StaircaseWithoutAuxiliaryVarsMethod(graph, upper_bound, use_symmetry_breaking,
                                                        use_heuristic, width);
     default:
         throw std::invalid_argument("Invalid solving method");
@@ -205,9 +213,12 @@ BCPSolver::BCPSolver* BCPSolver::BCPSolver::create_solver(const SolvingMethod me
 
 BCPSolver::SolverStatus BCPSolver::BCPSolver::non_optimal_solving(const double time_limit)
 {
+    timed_out = false;
+    optimality_proven = false;
     encode();
     if (const int result = sat_solver->solve(nullptr, time_limit); result == CaDiCaL::Status::UNKNOWN)
     {
+        timed_out = time_limit != NO_TIME_LIMIT;
         status = UNKNOWN;
         return status;
     }
@@ -220,100 +231,115 @@ BCPSolver::SolverStatus BCPSolver::BCPSolver::non_optimal_solving(const double t
 
 BCPSolver::SolverStatus BCPSolver::BCPSolver::optimal_solving_non_incremental(const double time_limit)
 {
-    int result{non_optimal_solving(time_limit)};
+    const SolverStatus initial_result = non_optimal_solving(time_limit);
 
-    if (result == UNKNOWN)
+    if (initial_result == UNKNOWN)
     {
-        status = UNKNOWN;
         return status;
     }
 
-    if (result == UNSATISFIABLE)
+    if (initial_result == UNSATISFIABLE)
     {
-        status = UNSATISFIABLE;
         return status;
     }
 
-    while (result == SATISFIABLE || result == CaDiCaL::Status::SATISFIABLE && span > lower_bound)
+    while (span > lower_bound)
     {
         sat_solver->reset();
         span--;
         encode();
 
+        int result;
         if (time_limit == NO_TIME_LIMIT)
         {
             result = sat_solver->solve();
-            if (result != CaDiCaL::Status::SATISFIABLE)
-            {
-                span++;
-            }
         }
         else
         {
             const auto remaining_time = time_limit - encoding_time - sat_solver->get_statistics()["total_solving_time"];
             result = sat_solver->solve(nullptr, remaining_time);
-
-            if (result != CaDiCaL::Status::SATISFIABLE)
-            {
-                span++;
-            }
         }
+
+        if (result == CaDiCaL::Status::SATISFIABLE)
+        {
+            continue;
+        }
+
+        span++;
+        if (result == CaDiCaL::Status::UNSATISFIABLE)
+        {
+            status = OPTIMAL;
+            optimality_proven = true;
+        }
+        else
+        {
+            status = SATISFIABLE;
+            timed_out = time_limit != NO_TIME_LIMIT;
+        }
+        return status;
     }
 
-    status = result != CaDiCaL::Status::UNKNOWN ? OPTIMAL : SATISFIABLE;
+    status = OPTIMAL;
+    optimality_proven = true;
     return status;
 }
 
 BCPSolver::SolverStatus BCPSolver::BCPSolver::optimal_solving_incremental(
     const double time_limit, const std::string& variable_for_incremental)
 {
-    int result{non_optimal_solving(time_limit)};
+    const SolverStatus initial_result = non_optimal_solving(time_limit);
 
-    if (result == UNKNOWN)
+    if (initial_result == UNKNOWN)
     {
-        status = UNKNOWN;
         return status;
     }
 
-    if (result == UNSATISFIABLE)
+    if (initial_result == UNSATISFIABLE)
     {
-        status = UNSATISFIABLE;
         return status;
     }
 
-    while (result == SATISFIABLE || result == CaDiCaL::Status::SATISFIABLE && span > lower_bound)
+    while (span > lower_bound)
     {
-        const auto assumptions{create_assumptions(variable_for_incremental)};
+        const auto literals = create_bound_tightening_literals(variable_for_incremental);
 
-        for (const auto lit : *assumptions)
+        for (const int literal : literals)
         {
-            sat_solver->add_clause(lit);
+            sat_solver->add_clause(literal);
         }
 
+        int result;
         if (time_limit == NO_TIME_LIMIT)
         {
-            // result = sat_solver.solve(assumptions);
             result = sat_solver->solve();
-            if (result == CaDiCaL::Status::SATISFIABLE)
-            {
-                span--;
-            }
         }
         else
         {
             const auto remaining_time = time_limit - encoding_time - sat_solver->get_statistics()["total_solving_time"];
-            // result = sat_solver.solve(assumptions, remaining_time);
             result = sat_solver->solve(nullptr, remaining_time);
-
-            if (result == CaDiCaL::Status::SATISFIABLE)
-            {
-                span--;
-            }
         }
-        delete assumptions;
+
+        if (result == CaDiCaL::Status::SATISFIABLE)
+        {
+            span--;
+            continue;
+        }
+
+        if (result == CaDiCaL::Status::UNSATISFIABLE)
+        {
+            status = OPTIMAL;
+            optimality_proven = true;
+        }
+        else
+        {
+            status = SATISFIABLE;
+            timed_out = time_limit != NO_TIME_LIMIT;
+        }
+        return status;
     }
 
-    status = result != CaDiCaL::Status::UNKNOWN ? OPTIMAL : SATISFIABLE;
+    status = OPTIMAL;
+    optimality_proven = true;
     return status;
 }
 
@@ -353,6 +379,8 @@ std::unordered_map<std::string, double> BCPSolver::BCPSolver::get_statistics() c
     stats["status"] = status;
     stats["span"] = get_span();
     stats["encoding_time"] = encoding_time;
+    stats["timed_out"] = timed_out ? 1.0 : 0.0;
+    stats["optimality_proven"] = optimality_proven ? 1.0 : 0.0;
 
     stats["time_used"] = encoding_time + stats["total_solving_time"];
 

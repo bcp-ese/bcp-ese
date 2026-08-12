@@ -6,10 +6,10 @@
 #define BCP_BMCP_UTILITY_H
 
 #include <limits>
+#include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
-
-#include "sat_solver/SatSolver.h"
 
 namespace BCPSolver
 {
@@ -43,9 +43,14 @@ namespace BCPSolver
 
     public:
         explicit Graph(const int n)
-            : edges_list(std::vector<std::tuple<int, int, int>>()), matrix(std::vector(n, std::vector<int>(n))),
+            : edges_list(std::vector<std::tuple<int, int, int>>()),
+              matrix(std::vector(n < 0 ? 0 : n, std::vector<int>(n < 0 ? 0 : n))),
               n(n)
         {
+            if (n < 0)
+            {
+                throw std::invalid_argument("Graph size must be non-negative");
+            }
         }
 
         void add_edge(int i, int j, int w);
@@ -64,6 +69,10 @@ namespace BCPSolver
 
         [[nodiscard]] std::vector<int> get_neighbors(const int node) const
         {
+            if (node < 0 || node >= n)
+            {
+                throw std::out_of_range("Node index out of bounds");
+            }
             std::vector<int> neighbors;
             for (int j = 0; j < n; j++)
             {
@@ -89,12 +98,11 @@ namespace BCPSolver
         bool use_symmetry_breaking;
         bool use_pairwise;
         std::string width;
-        SATSolver::SOLVER solver;
         SolvingMethod solving_method;
         // Constructor with defaults
         ProgramConfig()
             : time_limit(NO_TIME_LIMIT), upper_bound(-1), find_optimal(true), incremental_mode(false),
-              use_symmetry_breaking(false), use_pairwise(false), solver(SATSolver::CADICAL),
+              use_symmetry_breaking(false), use_pairwise(false),
               solving_method(TwoVariablesGreater)
         {
         }

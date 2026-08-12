@@ -66,7 +66,15 @@ void BCPSolver::OneVarGreaterMethod::third_constraint()
 
 void BCPSolver::OneVarGreaterMethod::symmetry_breaking()
 {
-    sat_solver->add_clause(-y[{graph->get_highest_degree_vertex(), span / 2 + 1}]);
+    if (graph->get_number_of_nodes() == 0)
+    {
+        return;
+    }
+    const int midpoint = (span + 1) / 2;
+    if (midpoint < span)
+    {
+        sat_solver->add_clause(-y.at({graph->get_highest_degree_vertex(), midpoint + 1}));
+    }
 }
 
 void BCPSolver::OneVarGreaterMethod::encode()
@@ -100,17 +108,18 @@ void BCPSolver::OneVarGreaterMethod::create_variable()
     }
 }
 
-std::vector<int>* BCPSolver::OneVarGreaterMethod::create_assumptions(const std::string& variable_for_incremental)
+std::vector<int> BCPSolver::OneVarGreaterMethod::create_bound_tightening_literals(
+    const std::string& variable_for_incremental)
 {
     if (variable_for_incremental == "y")
     {
-        auto* assumptions = new std::vector<int>(graph->get_number_of_nodes());
+        std::vector<int> literals(graph->get_number_of_nodes());
 
         for (int i = 0; i < graph->get_number_of_nodes(); i++)
         {
-            (*assumptions)[i] = -y[{i, span}];
+            literals[i] = -y.at({i, span});
         }
-        return assumptions;
+        return literals;
     }
     else
     {

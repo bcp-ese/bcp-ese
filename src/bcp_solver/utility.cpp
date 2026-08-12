@@ -6,22 +6,44 @@
 
 #include <fstream>
 #include <iostream>
+#include <memory>
+#include <set>
 #include <sstream>
 
 void BCPSolver::Graph::add_edge(const int i, const int j, const int w)
 {
+    if (i < 0 || i >= n || j < 0 || j >= n)
+    {
+        throw std::out_of_range("Edge endpoint out of bounds");
+    }
+    if (w <= 0)
+    {
+        throw std::invalid_argument("Edge weight must be positive");
+    }
+    if (i == j)
+    {
+        throw std::invalid_argument("BCP graph edges must join distinct vertices");
+    }
+    if (matrix[i][j] != 0)
+    {
+        throw std::invalid_argument("Duplicate BCP graph edge");
+    }
     edges_list.emplace_back(i, j, w);
     matrix[i][j] = w;
     matrix[j][i] = w;
 }
 
-const std::vector<std::tuple<int, int, int>> &BCPSolver::Graph::get_edges() const
+const std::vector<std::tuple<int, int, int>>& BCPSolver::Graph::get_edges() const
 {
     return edges_list;
 }
 
 int BCPSolver::Graph::get_weight(int i, int j) const
 {
+    if (i < 0 || i >= n || j < 0 || j >= n)
+    {
+        throw std::out_of_range("Node index out of bounds");
+    }
     return matrix[i][j];
 }
 
@@ -44,7 +66,7 @@ int BCPSolver::Graph::get_highest_degree_vertex() const
 
     std::vector degrees(n, 0);
 
-    for (const auto &edge : edges_list)
+    for (const auto& edge : edges_list)
     {
         degrees[std::get<0>(edge)]++;
         degrees[std::get<1>(edge)]++;
@@ -84,7 +106,7 @@ int BCPSolver::Graph::get_degree(const int node) const
     return degree;
 }
 
-BCPSolver::Graph *BCPSolver::read_bcp_graph(const std::string &file_path)
+BCPSolver::Graph* BCPSolver::read_bcp_graph(const std::string& file_path)
 {
     std::ifstream file(file_path);
     if (!file.is_open())
@@ -93,66 +115,124 @@ BCPSolver::Graph *BCPSolver::read_bcp_graph(const std::string &file_path)
         return nullptr;
     }
 
-    Graph *g = nullptr;
+    std::unique_ptr<Graph> graph;
+    int declared_edges = -1;
+    int parsed_edges = 0;
+    std::set<std::pair<int, int>> parsed_edge_pairs;
     std::string line;
+    int line_number = 0;
 
     while (std::getline(file, line))
     {
+        ++line_number;
         if (line.empty())
             continue;
 
         std::stringstream ss(line);
         char line_type;
-        ss >> line_type;
+        if (!(ss >> line_type))
+        {
+            continue;
+        }
 
         if (line_type == 'p')
         {
-            std::string ignore;
+            std::string problem_type;
             int num_nodes;
-            ss >> ignore >> num_nodes;
-
-            g = new Graph(num_nodes);
+            if (!(ss >> problem_type >> num_nodes >> declared_edges) || problem_type != "band" || num_nodes < 0 ||
+                declared_edges < 0 || graph)
+            {
+                std::cerr << "Error: invalid problem header at line " << line_number << " in " << file_path << '\n';
+                return nullptr;
+            }
+            graph = std::make_unique<Graph>(num_nodes);
         }
         else if (line_type == 'e')
         {
-            if (g == nullptr)
-                continue;
+            if (!graph)
+            {
+                std::cerr << "Error: edge appears before problem header at line " << line_number << " in "
+                          << file_path << '\n';
+                return nullptr;
+            }
 
             int u, v, w;
-            ss >> u >> v >> w;
+            if (!(ss >> u >> v >> w) || u < 1 || u > graph->get_number_of_nodes() || v < 1 ||
+                v > graph->get_number_of_nodes() || w <= 0)
+            {
+                std::cerr << "Error: invalid edge at line " << line_number << " in " << file_path << '\n';
+                return nullptr;
+            }
+            ++parsed_edges;
+
+            const auto edge_pair = std::minmax(u, v);
+            if (!parsed_edge_pairs.emplace(edge_pair.first, edge_pair.second).second)
+            {
+                std::cerr << "Error: duplicate edge at line " << line_number << " in " << file_path << '\n';
+                return nullptr;
+            }
 
             if (u != v)
             {
-                g->add_edge(u - 1, v - 1, w);
+                graph->add_edge(u - 1, v - 1, w);
             }
+        }
+        else if (line_type == 'n')
+        {
+            int vertex, demand;
+            if (!graph || !(ss >> vertex >> demand) || vertex < 1 || vertex > graph->get_number_of_nodes() ||
+                demand <= 0)
+            {
+                std::cerr << "Error: invalid demand record at line " << line_number << " in " << file_path << '\n';
+                return nullptr;
+            }
+        }
+        else if (line_type != 'c')
+        {
+            std::cerr << "Error: unknown record type at line " << line_number << " in " << file_path << '\n';
+            return nullptr;
         }
     }
 
     file.close();
-    return g;
+    if (!graph)
+    {
+        std::cerr << "Error: missing problem header in " << file_path << '\n';
+        return nullptr;
+    }
+    if (declared_edges != parsed_edges)
+    {
+        std::cerr << "Error: problem header declares " << declared_edges << " edges but parsed " << parsed_edges
+                  << " in " << file_path << '\n';
+        return nullptr;
+    }
+    return graph.release();
 }
 
-void BCPSolver::ArgParser::printUsage(const char *programName)
+void BCPSolver::ArgParser::printUsage(const char* programName)
 {
     std::cerr << "Usage: " << programName << " <filename> <method> [options]\n"
-              << "Arguments:\n"
-              << "  <filename>                      Path to the input file\n"
-              << "  <method>                        Method for solving: '1G', '1L','2G', '2L', 'Xa', 'X'\n\n"
-              << "Options:\n"
-              << "  -t, --time_limit <int>          Set time limit\n"
-              << "  -ub, --upper_bound <int>        Set preferred upper bound\n"
-              << "  --no-optimal                    Disable finding optimal value\n"
-              << "  --use-symmetry-breaking         Enable symmetry breaking\n"
-              << "  -w , --width <vary|fixed>       Set width for encoding."
-                 "Note: This flag must be set for 'X', 'Xa' method. \n"
-              << "  -i, --incremental               Enable incremental mode. "
-                 "Note: This flag requires '-v' to be set as well.\n"
-              << "  -v  --variable-for-incremental  Variables used in incremental: 'x, 'y'. You must specify this when"
-                 " using incremental mode, but it will be ignored otherwise.\n"
-              << "  -h, --help                      Show this help message\n";
+        << "Arguments:\n"
+        << "  <filename>                      Path to the input file\n"
+        << "  <method>                        Method for solving: '1G', '1L','2G', '2L', 'Xa(no-cache)', "
+        "'Xa(cache)', 'X'\n"
+        << "  SAT backend                     CaDiCaL (fixed)\n\n"
+        << "Options:\n"
+        << "  -t, --time_limit <int>          Set time limit\n"
+        << "  -ub, --upper_bound <int>        Set preferred upper bound\n"
+        << "  --no-optimal                    Disable finding optimal value\n"
+        << "  --use-symmetry-breaking         Enable symmetry breaking\n"
+        << "  --use-pairwise                  Enable pairwise encoding for all edges with d=1 while encoding\n"
+        << "  -w , --width <vary|fixed>       Set width for encoding."
+        " Note: this flag is required for 'X' and 'Xa' and unsupported by the other methods.\n"
+        << "  -i, --incremental               Enable incremental mode. "
+        "Note: This flag requires '-v' to be set as well.\n"
+        << "  -v, --variable-for-incremental  Variables used in incremental: 'x', 'y', 'both'. You must specify this when"
+        " using incremental mode, but it will be ignored otherwise.\n"
+        << "  -h, --help                      Show this help message\n";
 }
 
-BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
+BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char* argv[])
 {
     ProgramConfig config;
     bool filenameFound = false;
@@ -165,7 +245,6 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
             printUsage(argv[0]);
             exit(0);
         }
-
         else if (arg == "-t" || arg == "--time_limit")
         {
             if (i + 1 < argc)
@@ -206,7 +285,10 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
         {
             config.use_symmetry_breaking = true;
         }
-
+        else if (arg == "--use-pairwise")
+        {
+            config.use_pairwise = true;
+        }
         else if (arg == "-w" || arg == "--width")
         {
             if (i + 1 < argc)
@@ -217,7 +299,8 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
                 }
                 else
                 {
-                    throw std::invalid_argument("Invalid width: " + width + ". Expected 'vary' or 'fixed'.");
+                    throw std::invalid_argument(
+                        "Invalid width: " + width + ". Expected 'vary' or 'fixed'.");
                 }
             }
             else
@@ -235,13 +318,15 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
         {
             if (i + 1 < argc)
             {
-                if (std::string var = argv[++i]; var == "x" || var == "y")
+                if (std::string var = argv[++i]; var == "x" || var == "y" || var == "both")
                 {
                     config.variable_for_incremental = var;
                 }
                 else
                 {
-                    throw std::invalid_argument("Invalid variable for incremental: " + var + ". Expected 'x', 'y'.");
+                    throw std::invalid_argument(
+                        "Invalid variable for incremental: " + var +
+                        ". Expected 'x', 'y', or 'both'.");
                 }
             }
             else
@@ -277,7 +362,11 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
                 {
                     config.solving_method = TwoVariablesLess;
                 }
-                else if (arg == "Xa")
+                else if (arg == "Xa(no-cache)")
+                {
+                    config.solving_method = StaircaseWithAuxiliaryVarsNoCache;
+                }
+                else if (arg == "Xa(cache)")
                 {
                     config.solving_method = StaircaseWithAuxiliaryVarsWithCache;
                 }
@@ -287,8 +376,9 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
                 }
                 else
                 {
-                    throw std::invalid_argument("Invalid method: " + arg +
-                                                ". Expected '1G', '1L','2G', '2L', 'Xa', 'X'.");
+                    throw std::invalid_argument(
+                        "Invalid method: " + arg +
+                        ". Expected '1G', '1L','2G', '2L', 'Xa(no-cache)','Xa(cache)', 'X'.");
                 }
                 methodFound = true;
             }
@@ -303,6 +393,47 @@ BCPSolver::ProgramConfig BCPSolver::ArgParser::parse(int argc, char *argv[])
         throw std::runtime_error("Missing compulsory argument: <filename>");
     if (!methodFound)
         throw std::runtime_error("Missing compulsory argument: <method>");
+
+    const bool staircase_method =
+        config.solving_method == StaircaseWithAuxiliaryVarsNoCache ||
+        config.solving_method == StaircaseWithAuxiliaryVarsWithCache ||
+        config.solving_method == StaircaseWithoutAuxiliaryVars;
+    if (staircase_method && config.width.empty())
+    {
+        throw std::invalid_argument("The selected staircase encoding requires --width fixed or --width vary.");
+    }
+    if (!staircase_method && !config.width.empty())
+    {
+        throw std::invalid_argument("--width is only supported by staircase encodings.");
+    }
+    if (config.use_pairwise &&
+        (config.solving_method == OneVariableGreater || config.solving_method == OneVariableLess))
+    {
+        throw std::invalid_argument("--use-pairwise is not supported by the one-variable encodings.");
+    }
+
+    if (config.incremental_mode)
+    {
+        if (config.variable_for_incremental.empty())
+        {
+            throw std::invalid_argument("Incremental mode requires --variable-for-incremental.");
+        }
+
+        const bool valid_variable =
+            ((config.solving_method == OneVariableGreater || config.solving_method == OneVariableLess) &&
+             config.variable_for_incremental == "y") ||
+            ((config.solving_method == StaircaseWithAuxiliaryVarsNoCache ||
+              config.solving_method == StaircaseWithAuxiliaryVarsWithCache ||
+              config.solving_method == StaircaseWithoutAuxiliaryVars) &&
+             config.variable_for_incremental == "x") ||
+            ((config.solving_method == TwoVariablesGreater || config.solving_method == TwoVariablesLess) &&
+             (config.variable_for_incremental == "x" || config.variable_for_incremental == "y" ||
+              config.variable_for_incremental == "both"));
+        if (!valid_variable)
+        {
+            throw std::invalid_argument("The selected incremental variable is not supported by this encoding.");
+        }
+    }
 
     return config;
 }
