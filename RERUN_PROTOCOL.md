@@ -2,9 +2,11 @@
 
 ## Frozen configuration
 
-- Release candidate: `review-rerun-rc3`. This annotated tag must be created from the reviewed
-  baseline adapter and logging changes before any official run. The earlier RC1/RC2 tags do
-  not contain the complete revision protocol and must not be used for reported results.
+- Proposed-encoding release: `review-rerun-rc4`. The earlier RC3 release contained an
+  interim POP adapter inside this repository and must not be used for the final rerun.
+- POP-S-B/POPH-S-B release: tag `bcp-review-rerun-v1`, commit
+  `aaee871cf6b933940232689b95a5fea4cdbad2eb`, in a separate checkout of the original
+  `popsatgcpbcp` repository.
 - SAT backend: CaDiCaL `rel-1.9.5`, commit
   `146207318796f094dcded87349a64f0c6927309e`.
 - CaDiCaL seed: `0` (set by the solver wrapper and recorded in every result row). The fixed
@@ -23,7 +25,7 @@ git describe --tags --exact-match
 git status --porcelain --untracked-files=all
 ```
 
-The first command must print `review-rerun-rc3`; the second must print nothing. Build
+The first command must print `review-rerun-rc4`; the second must print nothing. Build
 CaDiCaL and BCP by following `external/cadical/README.md`, then run the test suite before
 starting the timing experiments.
 
@@ -78,8 +80,8 @@ Invoke the runner from a checkout containing the script, while passing a separat
 detached worktree at the frozen release tag as its first argument:
 
 ```sh
-git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc3^{}'
-./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc3
+git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc4^{}'
+./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc4
 ```
 
 Build `../bcp-rerun/bcp` from the pinned CaDiCaL dependency before starting. If execution
@@ -119,37 +121,43 @@ standard deviation over its three repetitions without a separate significance te
 
 ## POP-S-B and POPH-S-B baselines
 
-The comparison uses the authors' public implementation at the pinned commit
-`8f19dbff4135e6cff9e4b147ebe8462603d5fe03` of
-<https://github.com/s6dafabe/popsatgcpbcp>. The encoding classes `POP_SAT_BCP` and
-`POPHyb_SAT_BCP` are imported unchanged. A BCP-only adapter supplies the controlled parts of
-the experiment: the same greedy upper bound as the proposed implementation, explicit
-descending linear search, CaDiCaL 1.9.5 with seed 0, a 3600-second joint time budget, and
-three sequential fresh-process repetitions.
+POP-S-B and POPH-S-B are run directly from a separate clone of the authors' repository
+<https://github.com/s6dafabe/popsatgcpbcp>. The revision branch is based on upstream commit
+`8f19dbff4135e6cff9e4b147ebe8462603d5fe03` and frozen at commit
+`aaee871cf6b933940232689b95a5fea4cdbad2eb` (tag `bcp-review-rerun-v1`). The original
+`POP_SAT_BCP` and `POPHyb_SAT_BCP` formula classes remain in `source/ModelsSAT.py`; the
+search, timing, command-line entry point, and batch execution are implemented directly in
+that repository rather than through an adapter in `bcp-cpp`.
 
-Prepare the pinned source and Python environment once:
-
-```sh
-./prepare-pop-baseline-source.sh
-```
-
-After creating the clean RC3 worktree and building its CaDiCaL 1.9.5 executable, run both
-baselines with:
+Verify and prepare the separate checkout:
 
 ```sh
-./run-pop-baselines-review-rerun.sh \
-  ../bcp-rerun \
-  ./external/popsatgcpbcp/source \
-  ../cadical-1.9.5/build/cadical \
-  ../rerun-output/review-rerun-rc3/pop-baselines
+git -C ../popsatgcpbcp describe --tags --exact-match
+git -C ../popsatgcpbcp status --porcelain --untracked-files=all
+python3.12 -m venv ../popsatgcpbcp/.venv
+../popsatgcpbcp/.venv/bin/python -m pip install \
+  -r ../popsatgcpbcp/requirements.txt
 ```
 
-This runner performs `2 x 53 x 3 = 318` instance runs with concurrency one. It rejects a
-modified upstream checkout, a non-RC3 worktree, a different CaDiCaL version, incomplete or
-mixed-protocol resume files, and final CSVs that fail the row/metadata checks.
+The first Git command must print `bcp-review-rerun-v1`; the second must print nothing. Run
+both baselines directly from that checkout:
+
+```sh
+../popsatgcpbcp/.venv/bin/python \
+  ../popsatgcpbcp/source/run_bcp_baselines.py \
+  --dataset ../bcp-rerun/dataset \
+  --solver ../cadical-1.9.5/build/cadical \
+  --output ../rerun-output/review-rerun-rc4/pop-baselines.csv \
+  --repetitions 3 --time-limit 3600 --seed 0
+```
+
+This direct runner performs `2 x 53 x 3 = 318` instance runs with concurrency one. It checks
+CaDiCaL 1.9.5 and records the modified POP source SHA, dirty state, upstream base SHA, solver
+hash, input hashes, seed, repetitions, and timing components. Resume is allowed only when
+the CSV schema and all protocol metadata match.
 
 For every proposed configuration and both baselines, the reported runtime is
-`encoding_time + total_solving_time`. For the baseline adapter, `encoding_time` is the sum of
+`encoding_time + total_solving_time`. For the POP repository, `encoding_time` is the sum of
 the elapsed construction and DIMACS-writing time for all candidate bounds; for the proposed
 implementation it is the sum of its in-memory encoding calls. `total_solving_time` is the
 sum over all CaDiCaL calls. Input parsing and greedy upper-bound computation are excluded.
