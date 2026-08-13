@@ -18,6 +18,34 @@ import psutil
 REPO_ROOT = Path(__file__).resolve().parent
 SOLVER_NAME = 'CaDiCaL'
 
+# CaDiCaL prints zero-valued counters selectively.  Keep the counters used by
+# the manuscript analysis explicit so every result row has the same numeric
+# schema, while still preserving any additional counters emitted by the
+# solver (see append_result below).
+CADICAL_COUNTER_COLUMNS = (
+    'conflicts', 'decisions', 'propagations', 'learned', 'learned_lits',
+    'restarts', 'reduced', 'fixed', 'subsumed', 'minimized', 'shrunken',
+    'minishrunken', 'vivified', 'strengthened', 'weakened', 'chronological',
+    'rephased', 'stabilizing', 'otfs', 'reuses', 'ternary', 'restored',
+    'substituted', 'reactivated', 'eliminated', 'walked', 'lucky'
+)
+
+REQUIRED_ANALYSIS_COUNTERS = {
+    'conflicts', 'decisions', 'propagations', 'learned', 'learned_lits',
+    'restarts', 'reduced'
+}
+
+RESULT_COLUMNS = [
+    'name', 'V', 'E', 'upper_bound', 'variables', 'clauses',
+    'status', 'span', 'encoding_time', 'total_solving_time', 'time_used', 'memory_usage',
+    'timed_out', 'optimality_proven', *CADICAL_COUNTER_COLUMNS,
+    'run_id', 'source_sha', 'source_dirty', 'input_sha256',
+    'binary_sha256', 'command', 'host', 'platform', 'compiler', 'runner_versions',
+    'concurrency', 'recorded_at',
+    'solver', 'solver_seed', 'method', 'time_limit', 'incremental', 'incremental_variable',
+    'symmetry_breaking', 'pairwise', 'width'
+]
+
 
 def sha256_file(file_path):
     digest = hashlib.sha256()
@@ -41,6 +69,22 @@ def parse_solver_output(output_text):
                 except ValueError:
                     data[key.strip()] = val
     return data
+
+
+def normalize_cadical_counters(stats):
+    """Represent omitted zero-valued CaDiCaL counters explicitly as zero."""
+    for column in CADICAL_COUNTER_COLUMNS:
+        stats.setdefault(column, 0)
+    return stats
+
+
+def append_result(dataset_stats, result):
+    """Append one row without discarding solver counters outside the base schema."""
+    missing_columns = [column for column in result if column not in dataset_stats.columns]
+    for column in missing_columns:
+        dataset_stats[column] = pd.NA
+    dataset_stats.loc[len(dataset_stats), list(result)] = list(result.values())
+    return dataset_stats
 
 
 def process_instance(solving_method: str, file_path: str, upper_bound=None, time_limit: int = None,
@@ -87,7 +131,7 @@ def process_instance(solving_method: str, file_path: str, upper_bound=None, time
             check=True
         )
 
-        stats = parse_solver_output(result.stdout)
+        stats = normalize_cadical_counters(parse_solver_output(result.stdout))
         stats.update({
             'run_id': run_id,
             'source_sha': source_sha,
@@ -221,25 +265,17 @@ def benchmark(solving_method: str, time_limit: int = None, continue_from: str = 
 
     # Load existing progress if continuing
     if continue_from is None:
-        dataset_stats = pd.DataFrame(columns=[
-            'name', 'V', 'E', 'upper_bound', 'variables', 'clauses',
-            'status', 'span', 'encoding_time', 'total_solving_time', 'time_used', 'memory_usage',
-            'timed_out', 'optimality_proven', 'run_id', 'source_sha', 'source_dirty', 'input_sha256',
-            'binary_sha256', 'command', 'host', 'platform', 'compiler', 'runner_versions',
-            'concurrency', 'recorded_at',
-            'solver', 'solver_seed', 'method', 'time_limit', 'incremental', 'incremental_variable',
-            'symmetry_breaking', 'pairwise', 'width'
-        ])
+        dataset_stats = pd.DataFrame(columns=RESULT_COLUMNS)
     else:
         dataset_stats = pd.read_csv(continue_from)
         required_resume_columns = {
             'name', 'run_id', 'source_sha', 'input_sha256', 'binary_sha256', 'solver', 'solver_seed', 'method',
             'time_limit', 'incremental', 'incremental_variable', 'symmetry_breaking', 'pairwise', 'width',
             'host', 'platform', 'compiler', 'runner_versions', 'concurrency'
-        }
+        } | REQUIRED_ANALYSIS_COUNTERS
         missing_columns = required_resume_columns - set(dataset_stats.columns)
         if missing_columns:
-            raise ValueError(f'Cannot safely resume: missing provenance columns {sorted(missing_columns)}')
+            raise ValueError(f'Cannot safely resume: missing required columns {sorted(missing_columns)}')
         if not dataset_stats.empty:
             if set(dataset_stats['source_sha'].astype(str)) != {source_sha}:
                 raise ValueError('Cannot resume results produced from a different source commit.')
@@ -319,7 +355,7 @@ def benchmark(solving_method: str, time_limit: int = None, continue_from: str = 
             try:
                 result = future.result()
                 result.pop('file_path', None)
-                dataset_stats.loc[len(dataset_stats)] = result
+                dataset_stats = append_result(dataset_stats, result)
 
                 # Periodically save partial results
                 current_time = time.time()

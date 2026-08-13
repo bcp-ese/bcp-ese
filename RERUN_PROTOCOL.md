@@ -2,12 +2,14 @@
 
 ## Frozen configuration
 
-- Release candidate tag: `review-rerun-rc1`.
+- Release candidate tag: `review-rerun-rc2`. This tag must be created only after committing
+  the reviewed benchmark-export fix and passing both the solver and export tests; the earlier
+  `review-rerun-rc1` tag does not preserve the required CaDiCaL counters in its CSV output.
 - SAT backend: CaDiCaL `rel-1.9.5`, commit
   `146207318796f094dcded87349a64f0c6927309e`.
 - CaDiCaL seed: `0` (set by the solver wrapper and recorded in every result row).
 - Time limit: `3600` seconds per instance.
-- Repetitions: exactly `3` independent processes per instance/configuration.
+- Repetitions: exactly `3` fresh process executions per instance/configuration.
 - Concurrency: `1` for reported timing runs.
 - Incremental implementation: permanent bound-tightening unit clauses, without SAT
   assumptions.
@@ -19,9 +21,15 @@ git describe --tags --exact-match
 git status --porcelain --untracked-files=all
 ```
 
-The first command must print `review-rerun-rc1`; the second must print nothing. Build
+The first command must print `review-rerun-rc2`; the second must print nothing. Build
 CaDiCaL and BCP by following `external/cadical/README.md`, then run the test suite before
 starting the timing experiments.
+
+Also run the benchmark-export regression test:
+
+```sh
+python3 -m unittest test/test_benchmark.py
+```
 
 ## Benchmark command template
 
@@ -68,8 +76,8 @@ Invoke the runner from a checkout containing the script, while passing a separat
 detached worktree at the frozen release tag as its first argument:
 
 ```sh
-git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc1^{}'
-./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc1
+git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc2^{}'
+./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc2
 ```
 
 Build `../bcp-rerun/bcp` from the pinned CaDiCaL dependency before starting. If execution
@@ -86,3 +94,18 @@ The 20 MS-CAP-formatted files yield only four distinct BCP projections after dem
 self-loops are removed. Follow `dataset/MS_CAP_MANIFEST.md` and never treat all 20 files as
 independent BCP instances. Report solved and timeout counts separately and apply the Holm
 correction to the prespecified family of confirmatory comparisons.
+
+## Solver-effort counters
+
+Every result row records the aggregate CaDiCaL counters `conflicts`, `decisions`,
+`propagations`, `learned`, `learned_lits`, `restarts`, and `reduced`. Counters that CaDiCaL
+omits when their value is zero are exported explicitly as zero. The benchmark driver also
+preserves any additional counters printed by the solver, and the matrix runner rejects a
+final CSV if any required counter is missing or nonnumeric.
+
+For the exploratory comparison of `x`- and `y`-based tightening in 2G/2L, retain symmetry
+off and symmetry on as separate strata. For each instance/configuration, first summarize the
+three repetitions, then compare paired time, conflict, decision, and propagation ratios.
+The aggregate counters characterize search effort; they do not identify the variable
+composition of a learned clause or whether a particular clause learned at one bound is used
+at a later bound.

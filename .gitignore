@@ -18,3 +18,4 @@ cmake-build-debug
 /bcp
 /cnf/
 *.tmp
+.DS_Store

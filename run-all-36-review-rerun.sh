@@ -5,8 +5,7 @@
 
 set -Eeuo pipefail
 
-expected_tag="review-rerun-rc1"
-expected_sha="509f41020245d12b4e03b0c6681826c72245d1f3"
+expected_tag="${BCP_RELEASE_TAG:-review-rerun-rc2}"
 expected_dataset_count=53
 repetitions=3
 time_limit=3600
@@ -15,7 +14,7 @@ save_interval_seconds="${BCP_SAVE_INTERVAL_SECONDS:-900}"
 
 usage() {
     echo "Usage: $0 REPO_AT_RELEASE_TAG SESSION_DIR [--dry-run]" >&2
-    echo "Example: $0 ../bcp-rerun ../rerun-output/review-rerun-rc1" >&2
+    echo "Example: $0 ../bcp-rerun ../rerun-output/review-rerun-rc2" >&2
 }
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
@@ -45,6 +44,18 @@ start_marker="$session_dir/.session-start"
 mkdir -p "$result_dir" "$state_dir" "$log_dir"
 if [ ! -e "$start_marker" ]; then
     touch "$start_marker"
+fi
+
+if [ "$(git -C "$repo_dir" cat-file -t "refs/tags/$expected_tag" 2>/dev/null || true)" != "tag" ]; then
+    echo "ERROR: $expected_tag must exist as an annotated tag in $repo_dir." >&2
+    echo "Commit and tag the reviewed logging changes before starting official runs." >&2
+    exit 1
+fi
+
+if ! expected_sha="$(git -C "$repo_dir" rev-parse "refs/tags/$expected_tag^{}" 2>/dev/null)"; then
+    echo "ERROR: annotated release tag $expected_tag does not exist in $repo_dir." >&2
+    echo "Commit and tag the reviewed logging changes before starting official runs." >&2
+    exit 1
 fi
 
 actual_sha="$(git -C "$repo_dir" rev-parse HEAD)"
@@ -79,6 +90,7 @@ if [ "$dataset_count" -ne "$expected_dataset_count" ]; then
 fi
 
 python3 -c 'import pandas, psutil' >/dev/null
+(cd "$repo_dir" && python3 -m unittest test/test_benchmark.py)
 
 find_latest_resume() {
     local config_id="$1"
@@ -118,6 +130,7 @@ validate_final_csv() {
         "$time_limit" "$concurrency" <<'PY'
 import collections
 import csv
+import math
 import pathlib
 import sys
 
@@ -129,7 +142,19 @@ expected_time_limit = sys.argv[5]
 expected_concurrency = sys.argv[6]
 
 with csv_path.open(newline='', encoding='utf-8') as handle:
-    rows = list(csv.DictReader(handle))
+    reader = csv.DictReader(handle)
+    rows = list(reader)
+    fieldnames = set(reader.fieldnames or [])
+
+analysis_counters = {
+    'conflicts', 'decisions', 'propagations', 'learned', 'learned_lits',
+    'restarts', 'reduced'
+}
+missing_counters = analysis_counters - fieldnames
+if missing_counters:
+    raise SystemExit(
+        f'{csv_path}: missing required CaDiCaL counters {sorted(missing_counters)}'
+    )
 
 expected_rows = expected_instances * expected_repetitions
 if len(rows) != expected_rows:
@@ -153,6 +178,20 @@ for column, expected in checks.items():
         raise SystemExit(
             f'{csv_path}: {column} expected {sorted(expected)}, found {sorted(actual)}'
         )
+
+for row_number, row in enumerate(rows, start=2):
+    for column in analysis_counters:
+        raw_value = row[column].strip()
+        try:
+            value = float(raw_value)
+        except ValueError as error:
+            raise SystemExit(
+                f'{csv_path}:{row_number}: {column} is not numeric: {raw_value!r}'
+            ) from error
+        if not math.isfinite(value) or value < 0:
+            raise SystemExit(
+                f'{csv_path}:{row_number}: {column} must be finite and nonnegative, found {raw_value!r}'
+            )
 
 counts = collections.Counter(row['name'] for row in rows)
 if len(counts) != expected_instances or set(counts.values()) != {expected_repetitions}:
