@@ -2,8 +2,9 @@
 
 ## Frozen configuration
 
-- Proposed-encoding release: `review-rerun-rc4`. The earlier RC3 release contained an
-  interim POP adapter inside this repository and must not be used for the final rerun.
+- Proposed-encoding release: `review-rerun-rc5`. RC3 contained the interim embedded POP
+  adapter, while RC4 still gave an ambiguous clone URL for the separate POP release; neither
+  should be used for the final rerun.
 - POP-S-B/POPH-S-B release: tag `bcp-review-rerun-v1`, commit
   `aaee871cf6b933940232689b95a5fea4cdbad2eb`, in a separate checkout of the original
   `popsatgcpbcp` repository.
@@ -25,7 +26,7 @@ git describe --tags --exact-match
 git status --porcelain --untracked-files=all
 ```
 
-The first command must print `review-rerun-rc4`; the second must print nothing. Build
+The first command must print `review-rerun-rc5`; the second must print nothing. Build
 CaDiCaL and BCP by following `external/cadical/README.md`, then run the test suite before
 starting the timing experiments.
 
@@ -80,8 +81,8 @@ Invoke the runner from a checkout containing the script, while passing a separat
 detached worktree at the frozen release tag as its first argument:
 
 ```sh
-git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc4^{}'
-./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc4
+git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc5^{}'
+./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc5
 ```
 
 Build `../bcp-rerun/bcp` from the pinned CaDiCaL dependency before starting. If execution
@@ -121,7 +122,8 @@ standard deviation over its three repetitions without a separate significance te
 
 ## POP-S-B and POPH-S-B baselines
 
-POP-S-B and POPH-S-B are run directly from a separate clone of the authors' repository
+POP-S-B and POPH-S-B are run directly from the public revision fork
+<https://github.com/kieuvantuyen01/popsatgcpbcp>, whose upstream is the authors' repository
 <https://github.com/s6dafabe/popsatgcpbcp>. The revision branch is based on upstream commit
 `8f19dbff4135e6cff9e4b147ebe8462603d5fe03` and frozen at commit
 `aaee871cf6b933940232689b95a5fea4cdbad2eb` (tag `bcp-review-rerun-v1`). The original
@@ -129,9 +131,11 @@ POP-S-B and POPH-S-B are run directly from a separate clone of the authors' repo
 search, timing, command-line entry point, and batch execution are implemented directly in
 that repository rather than through an adapter in `bcp-cpp`.
 
-Verify and prepare the separate checkout:
+Clone, verify, and prepare the separate checkout:
 
 ```sh
+git clone --branch bcp-review-rerun-v1 \
+  https://github.com/kieuvantuyen01/popsatgcpbcp.git ../popsatgcpbcp
 git -C ../popsatgcpbcp describe --tags --exact-match
 git -C ../popsatgcpbcp status --porcelain --untracked-files=all
 python3.12 -m venv ../popsatgcpbcp/.venv
@@ -147,7 +151,7 @@ both baselines directly from that checkout:
   ../popsatgcpbcp/source/run_bcp_baselines.py \
   --dataset ../bcp-rerun/dataset \
   --solver ../cadical-1.9.5/build/cadical \
-  --output ../rerun-output/review-rerun-rc4/pop-baselines.csv \
+  --output ../rerun-output/review-rerun-rc5/pop-baselines.csv \
   --repetitions 3 --time-limit 3600 --seed 0
 ```
 
