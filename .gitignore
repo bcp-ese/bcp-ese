@@ -17,5 +17,6 @@ cmake-build-debug
 /build-*/
 /bcp
 /cnf/
+/external/popsatgcpbcp/source/
 *.tmp
 .DS_Store

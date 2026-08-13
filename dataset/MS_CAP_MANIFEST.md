@@ -10,12 +10,16 @@ The BCP reader uses the non-loop `e` records. It ignores the multicoloring-deman
 
 Consequently, the 20 input files yield only four distinct BCP projections. Files with the same projection must not be treated as statistically independent BCP instances.
 
-| BCP projection | Input files | Files | Vertices | Non-loop edges | Known optimum |
-|---|---|---:|---:|---:|---:|
-| c21, direct distance 1 | odd c21 indices, both demand vectors | 8 | 21 | 102 | 7 |
-| c21, direct distance 2 | even c21 indices, both demand vectors | 8 | 21 | 102 | 9 |
-| c25 | both c25 demand vectors | 2 | 25 | 134 | 8 |
-| c55 | both c55 demand vectors | 2 | 55 | 362 | 7 |
+| BCP projection | Input files | Statistical representative | Files | Vertices | Non-loop edges | Known optimum |
+|---|---|---|---:|---:|---:|---:|
+| c21, direct distance 1 | odd c21 indices, both demand vectors | `c21_1_d1.col` | 8 | 21 | 102 | 7 |
+| c21, direct distance 2 | even c21 indices, both demand vectors | `c21_2_d1.col` | 8 | 21 | 102 | 9 |
+| c25 | both c25 demand vectors | `c25_1_d3.col` | 2 | 25 | 134 | 8 |
+| c55 | both c55 demand vectors | `c55_1_d1.col` | 2 | 55 | 362 | 7 |
+
+The representatives above are fixed before the revision rerun and are the four MS-CAP units
+used in paired statistical tests. Results for the remaining source files are retained as
+file-level reproducibility checks but are not additional statistical units.
 
 The raw `p band` edge counts are 123 for c21, 159 for c25, and 417 for c55 because they include one self-loop per vertex. C21 was corrected by removing the spurious direct topology relation `14--19`. The c25 topology is the symmetric `C^(3)` compatibility matrix from the published CAP benchmark appendix.
 

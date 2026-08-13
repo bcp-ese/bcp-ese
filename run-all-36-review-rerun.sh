@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-expected_tag="${BCP_RELEASE_TAG:-review-rerun-rc2}"
+expected_tag="${BCP_RELEASE_TAG:-review-rerun-rc3}"
 expected_dataset_count=53
 repetitions=3
 time_limit=3600
@@ -14,7 +14,7 @@ save_interval_seconds="${BCP_SAVE_INTERVAL_SECONDS:-900}"
 
 usage() {
     echo "Usage: $0 REPO_AT_RELEASE_TAG SESSION_DIR [--dry-run]" >&2
-    echo "Example: $0 ../bcp-rerun ../rerun-output/review-rerun-rc2" >&2
+    echo "Example: $0 ../bcp-rerun ../rerun-output/review-rerun-rc3" >&2
 }
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
