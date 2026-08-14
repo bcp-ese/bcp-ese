@@ -257,4 +257,7 @@ TEST(SolverStatusTest, TimeLimitIsReportedSeparatelyFromOptimality)
     const auto stats = solver->get_statistics();
     EXPECT_EQ(stats.at("timed_out"), 1.0);
     EXPECT_EQ(stats.at("optimality_proven"), 0.0);
+    EXPECT_GT(stats.at("encoding_time"), 0.0);
+    EXPECT_EQ(stats.at("total_solving_time"), 0.0);
+    EXPECT_EQ(stats.at("time_used"), stats.at("encoding_time"));
 }

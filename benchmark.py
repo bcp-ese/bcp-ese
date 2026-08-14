@@ -452,7 +452,7 @@ def main():
     parser.add_argument('--width', type=str, default="", choices=['fixed', '', 'vary'],
                         help='Width parameter (if applicable).')
     parser.add_argument('--repetitions', type=int, default=3,
-                        help='Number of independent timing repetitions per instance (default: 3).')
+                        help='Number of fresh-process timing repetitions per instance (default: 3).')
     parser.add_argument('--allow_dirty', action='store_true',
                         help='Allow exploratory runs from a dirty working tree (not for reported results).')
     parser.add_argument('--binary', type=str, default='./bcp',

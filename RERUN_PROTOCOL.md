@@ -2,9 +2,10 @@
 
 ## Frozen configuration
 
-- Proposed-encoding release: `review-rerun-rc5`. RC3 contained the interim embedded POP
-  adapter, while RC4 still gave an ambiguous clone URL for the separate POP release; neither
-  should be used for the final rerun.
+- Proposed-encoding release: `review-rerun-rc6`. RC3 contained the interim embedded POP
+  adapter, RC4 still gave an ambiguous clone URL for the separate POP release, and RC5 did
+  not subtract initial encoding time from the joint time budget. None should be used for the
+  final rerun.
 - POP-S-B/POPH-S-B release: tag `bcp-review-rerun-v1`, commit
   `aaee871cf6b933940232689b95a5fea4cdbad2eb`, in a separate checkout of the original
   `popsatgcpbcp` repository.
@@ -26,7 +27,7 @@ git describe --tags --exact-match
 git status --porcelain --untracked-files=all
 ```
 
-The first command must print `review-rerun-rc5`; the second must print nothing. Build
+The first command must print `review-rerun-rc6`; the second must print nothing. Build
 CaDiCaL and BCP by following `external/cadical/README.md`, then run the test suite before
 starting the timing experiments.
 
@@ -74,15 +75,16 @@ listed in the manuscript configuration matrix:
 Although the implementation supports additional experimental modes, incremental `both`,
 pairwise constraints, and `Xa(no-cache)` are not part of the manuscript's 36-configuration
 matrix. With the 53 current `.col` files and three repetitions, the runner performs
-`36 x 53 x 3 = 5724` solver invocations. It validates the release tag and SHA before
+`36 x 53 x 3 = 5724` instance-configuration timing runs. Each timing run may invoke the SAT
+solver at several candidate spans. The runner validates the release tag and SHA before
 starting, runs with concurrency one, and can resume from its most recent partial result.
 
 Invoke the runner from a checkout containing the script, while passing a separate clean,
 detached worktree at the frozen release tag as its first argument:
 
 ```sh
-git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc5^{}'
-./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc5
+git worktree add --detach ../bcp-rerun 'refs/tags/review-rerun-rc6^{}'
+./run-all-36-review-rerun.sh ../bcp-rerun ../rerun-output/review-rerun-rc6
 ```
 
 Build `../bcp-rerun/bcp` from the pinned CaDiCaL dependency before starting. If execution
@@ -151,7 +153,7 @@ both baselines directly from that checkout:
   ../popsatgcpbcp/source/run_bcp_baselines.py \
   --dataset ../bcp-rerun/dataset \
   --solver ../cadical-1.9.5/build/cadical \
-  --output ../rerun-output/review-rerun-rc5/pop-baselines.csv \
+  --output ../rerun-output/review-rerun-rc6/pop-baselines.csv \
   --repetitions 3 --time-limit 3600 --seed 0
 ```
 
@@ -165,7 +167,30 @@ For every proposed configuration and both baselines, the reported runtime is
 the elapsed construction and DIMACS-writing time for all candidate bounds; for the proposed
 implementation it is the sum of its in-memory encoding calls. `total_solving_time` is the
 sum over all CaDiCaL calls. Input parsing and greedy upper-bound computation are excluded.
-The 3600-second budget applies to the encoding-plus-solving sum, not to SAT time alone.
+The 3600-second budget applies to the encoding-plus-solving sum, not to SAT time alone. The
+remaining budget is checked after each encoding step, including the initial encoding, before
+CaDiCaL is invoked.
+
+## R1.9 statistical analysis
+
+After the proposed matrix and both POP baselines have finished, run the prespecified R1.9
+analysis with the final Xa result named in the session state:
+
+```sh
+xa_csv="$(sed -n '1p' \
+  ../rerun-output/review-rerun-rc6/state/'Xa(cache)-fixed-width-I-x-S-0.done')"
+python3 analyze_r1_9.py \
+  --xa-csv "$xa_csv" \
+  --pop-csv ../rerun-output/review-rerun-rc6/pop-baselines.csv \
+  --output-dir ../rerun-output/review-rerun-rc6/r1-9-analysis
+```
+
+The script rejects dirty-source results, wrong seed/time-limit/concurrency metadata,
+duplicate or missing repetitions, inconsistent timing sums, an incorrect Xa configuration,
+and an unexpected POP upstream commit. It uses only the 33 GEOM instances and the four
+prespecified MS-CAP representatives. Its outputs contain per-instance mean/sample SD,
+per-repetition benchmark totals, completion counts, the two Wilcoxon tests with Holm-adjusted
+p-values, median Xa-to-baseline runtime ratios, and the GEOM120b descriptive summary.
 
 ## Solver-effort counters
 

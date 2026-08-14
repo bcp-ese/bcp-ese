@@ -5,7 +5,7 @@
 
 set -Eeuo pipefail
 
-expected_tag="${BCP_RELEASE_TAG:-review-rerun-rc5}"
+expected_tag="${BCP_RELEASE_TAG:-review-rerun-rc6}"
 expected_dataset_count=53
 repetitions=3
 time_limit=3600
@@ -14,7 +14,7 @@ save_interval_seconds="${BCP_SAVE_INTERVAL_SECONDS:-900}"
 
 usage() {
     echo "Usage: $0 REPO_AT_RELEASE_TAG SESSION_DIR [--dry-run]" >&2
-    echo "Example: $0 ../bcp-rerun ../rerun-output/review-rerun-rc5" >&2
+    echo "Example: $0 ../bcp-rerun ../rerun-output/review-rerun-rc6" >&2
 }
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
@@ -150,11 +150,15 @@ analysis_counters = {
     'conflicts', 'decisions', 'propagations', 'learned', 'learned_lits',
     'restarts', 'reduced'
 }
+timing_columns = {'encoding_time', 'total_solving_time', 'time_used'}
 missing_counters = analysis_counters - fieldnames
 if missing_counters:
     raise SystemExit(
         f'{csv_path}: missing required CaDiCaL counters {sorted(missing_counters)}'
     )
+missing_timing = timing_columns - fieldnames
+if missing_timing:
+    raise SystemExit(f'{csv_path}: missing timing columns {sorted(missing_timing)}')
 
 expected_rows = expected_instances * expected_repetitions
 if len(rows) != expected_rows:
@@ -192,6 +196,25 @@ for row_number, row in enumerate(rows, start=2):
             raise SystemExit(
                 f'{csv_path}:{row_number}: {column} must be finite and nonnegative, found {raw_value!r}'
             )
+    timing = {}
+    for column in timing_columns:
+        raw_value = row[column].strip()
+        try:
+            value = float(raw_value)
+        except ValueError as error:
+            raise SystemExit(
+                f'{csv_path}:{row_number}: {column} is not numeric: {raw_value!r}'
+            ) from error
+        if not math.isfinite(value) or value < 0:
+            raise SystemExit(
+                f'{csv_path}:{row_number}: {column} must be finite and nonnegative, found {raw_value!r}'
+            )
+        timing[column] = value
+    expected_total = timing['encoding_time'] + timing['total_solving_time']
+    if not math.isclose(timing['time_used'], expected_total, rel_tol=1e-9, abs_tol=1e-9):
+        raise SystemExit(
+            f'{csv_path}:{row_number}: time_used does not equal encoding plus solving time'
+        )
 
 counts = collections.Counter(row['name'] for row in rows)
 if len(counts) != expected_instances or set(counts.values()) != {expected_repetitions}:
@@ -199,6 +222,15 @@ if len(counts) != expected_instances or set(counts.values()) != {expected_repeti
         f'{csv_path}: each of {expected_instances} instances must occur '
         f'exactly {expected_repetitions} times'
     )
+keys = [(row['name'], int(row['run_id'])) for row in rows]
+if len(set(keys)) != len(keys):
+    raise SystemExit(f'{csv_path}: duplicate (name, run_id) rows')
+run_ids_by_instance = collections.defaultdict(set)
+for name, run_id in keys:
+    run_ids_by_instance[name].add(run_id)
+expected_run_ids = set(range(1, expected_repetitions + 1))
+if any(run_ids != expected_run_ids for run_ids in run_ids_by_instance.values()):
+    raise SystemExit(f'{csv_path}: each instance must contain every expected run_id exactly once')
 PY
 }
 
@@ -289,7 +321,7 @@ run_one() {
 }
 
 echo "Release: $expected_tag ($expected_sha)"
-echo "Matrix: 36 configurations x $expected_dataset_count instances x $repetitions repetitions = 5724 solver runs"
+echo "Matrix: 36 configurations x $expected_dataset_count instances x $repetitions repetitions = 5724 instance runs"
 echo "Timing: concurrency=$concurrency, time_limit=${time_limit}s, CaDiCaL seed=0"
 echo "Session: $session_dir"
 

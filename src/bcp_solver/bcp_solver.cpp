@@ -4,6 +4,7 @@
 
 #include "bcp_solver.h"
 
+#include <chrono>
 #include <queue>
 #include <ranges>
 #include <utility>
@@ -216,7 +217,20 @@ BCPSolver::SolverStatus BCPSolver::BCPSolver::non_optimal_solving(const double t
     timed_out = false;
     optimality_proven = false;
     encode();
-    if (const int result = sat_solver->solve(nullptr, time_limit); result == CaDiCaL::Status::UNKNOWN)
+
+    double remaining_time = time_limit;
+    if (time_limit != NO_TIME_LIMIT)
+    {
+        remaining_time -= encoding_time + sat_solver->get_statistics()["total_solving_time"];
+        if (remaining_time <= 0.0)
+        {
+            timed_out = true;
+            status = UNKNOWN;
+            return status;
+        }
+    }
+
+    if (const int result = sat_solver->solve(nullptr, remaining_time); result == CaDiCaL::Status::UNKNOWN)
     {
         timed_out = time_limit != NO_TIME_LIMIT;
         status = UNKNOWN;
@@ -257,6 +271,13 @@ BCPSolver::SolverStatus BCPSolver::BCPSolver::optimal_solving_non_incremental(co
         else
         {
             const auto remaining_time = time_limit - encoding_time - sat_solver->get_statistics()["total_solving_time"];
+            if (remaining_time <= 0.0)
+            {
+                span++;
+                status = SATISFIABLE;
+                timed_out = true;
+                return status;
+            }
             result = sat_solver->solve(nullptr, remaining_time);
         }
 
@@ -301,12 +322,15 @@ BCPSolver::SolverStatus BCPSolver::BCPSolver::optimal_solving_incremental(
 
     while (span > lower_bound)
     {
+        const auto tightening_start = std::chrono::high_resolution_clock::now();
         const auto literals = create_bound_tightening_literals(variable_for_incremental);
 
         for (const int literal : literals)
         {
             sat_solver->add_clause(literal);
         }
+        encoding_time += std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - tightening_start).count();
 
         int result;
         if (time_limit == NO_TIME_LIMIT)
@@ -316,6 +340,12 @@ BCPSolver::SolverStatus BCPSolver::BCPSolver::optimal_solving_incremental(
         else
         {
             const auto remaining_time = time_limit - encoding_time - sat_solver->get_statistics()["total_solving_time"];
+            if (remaining_time <= 0.0)
+            {
+                status = SATISFIABLE;
+                timed_out = true;
+                return status;
+            }
             result = sat_solver->solve(nullptr, remaining_time);
         }
 
